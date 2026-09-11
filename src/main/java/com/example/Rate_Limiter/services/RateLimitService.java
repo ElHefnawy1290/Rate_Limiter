@@ -14,7 +14,7 @@ public class RateLimitService {
     public final DefaultRedisScript<Long> script;
 
     private static final double capacity = 100.0;
-    private static final double rate = 10.0/6000.0;
+    private static final double rate = 5.0/6000.0;
 
     public RateLimitService(StringRedisTemplate redisTemplate, DefaultRedisScript<Long> script){
         this.redisTemplate = redisTemplate;

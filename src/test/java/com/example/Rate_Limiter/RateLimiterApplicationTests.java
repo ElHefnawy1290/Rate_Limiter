@@ -1,10 +1,14 @@
 package com.example.Rate_Limiter;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -21,10 +25,18 @@ import static ch.qos.logback.core.joran.spi.ConsoleTarget.SystemOut;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class RateLimiterApplicationTests {
 
+    @Autowired
+    private StringRedisTemplate redisTemplate;
+
+    @BeforeEach
+    void setUp() {
+        redisTemplate.getConnectionFactory().getConnection().serverCommands().flushAll();
+    }
+
     @LocalServerPort
     private int port;
 	@Test
-	public void executeSiege() throws InterruptedException {
+	public void executeSiege() throws InterruptedException, IOException {
         int totalRequests = 1000;
         CountDownLatch gate = new CountDownLatch(1);
         CountDownLatch completionLatch = new CountDownLatch(totalRequests);
@@ -56,11 +68,20 @@ class RateLimiterApplicationTests {
                        failCount.incrementAndGet();
                }catch (Exception e) {
                    failCount.incrementAndGet();
+                   System.out.println("Request failed: " + e.getClass().getSimpleName() + " - " + e.getMessage());
                }finally {
                    completionLatch.countDown();
                }
             });
         }
+
+        HttpRequest warmup = HttpRequest.newBuilder()
+                .uri(URI.create("http://localhost:" + port + "/api/resource"))
+                .header("X-User-Id", "warmup-user")
+                .GET()
+                .build();
+        client.send(warmup, HttpResponse.BodyHandlers.discarding());
+        redisTemplate.getConnectionFactory().getConnection().serverCommands().flushAll();
 
         Thread.sleep(500);
         gate.countDown();
